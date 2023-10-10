@@ -1,12 +1,9 @@
 # food-genius
 
-Telegram bot allowing you to build and find recipes by ingredient
+Telegram bot allowing you to build and find recipes by category, ingredient or protein
 
 ## Commands
 
-- language: Select language
-- desayuno, breakfast
-- almuerzo, lunch
-- merienda, supper
-- cena, dinner
-- search {ingredient}
+- `language`: Select language
+- `eat`: Choose what to eat
+- `abort`: Abort current operation
