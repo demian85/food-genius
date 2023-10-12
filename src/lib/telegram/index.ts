@@ -31,7 +31,7 @@ bot.use((ctx, _next) => {
     'Middleware call'
   )
 
-  ctx.session ??= { currentCommand: null, language: 'en' }
+  ctx.session ??= { currentCommand: null, language: 'es' }
 
   if (ctx.chat?.type !== 'private') {
     throw new Error('Bot not allowed in groups')

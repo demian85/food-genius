@@ -30,6 +30,17 @@ export interface CurrentCommand {
   data?: string
 }
 
+export interface Recipe {
+  title: string
+  ingredients: string[]
+  instructions: string[]
+}
+
+export interface EatCommand extends CurrentCommand {
+  id: 'eat'
+  recipes: Recipe[]
+}
+
 export interface Session {
   currentCommand: CurrentCommand | null
 }
