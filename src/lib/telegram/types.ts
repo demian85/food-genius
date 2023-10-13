@@ -33,11 +33,13 @@ export interface CurrentCommand {
 export interface Recipe {
   title: string
   ingredients: string[]
-  instructions: string[]
+  description: string
 }
 
 export interface EatCommand extends CurrentCommand {
   id: 'eat'
+  category: string
+  protein: string
   recipes: Recipe[]
 }
 

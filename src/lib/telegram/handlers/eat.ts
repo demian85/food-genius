@@ -61,7 +61,8 @@ export default {
         ],
       }
       const keyboardButtons = keyboardOptions[ctx.session.language]
-      await ctx.reply(`Elije la categoría:`, {
+      await ctx.reply(`Elige la categoría`, {
+        parse_mode: 'HTML',
         reply_markup: { inline_keyboard: [keyboardButtons] },
       })
     },
@@ -76,14 +77,23 @@ export default {
       await ctx.answerCbQuery('')
 
       const proteins = await db().manyOrNone<{ p: string }>(
-        `select distinct unnest(proteins) as p from recipes where categories && $1::varchar[]`,
+        `select distinct unnest(proteins) as p 
+          from recipes 
+          where categories && $1::varchar[]`,
         [[category]]
       )
+
+      if (!proteins.length) {
+        await ctx.editMessageText('No se han encontrado recetas')
+        return
+      }
+
       const keyboardButtons = proteins.map((v) => ({
         text: capitalize(v.p),
         callback_data: JSON.stringify({ category, protein: v.p }),
       }))
-      await ctx.editMessageText('Elije la proteína:', {
+
+      await ctx.editMessageText('Elige la proteína', {
         reply_markup: { inline_keyboard: [keyboardButtons] },
       })
     },
@@ -94,188 +104,171 @@ export default {
         (ctx.callbackQuery as CallbackQuery.DataQuery).data
       ) as { category: string; protein: string }
 
-      ctx.session.currentCommand!.step = 2
+      const currentCommand = ctx.session.currentCommand as EatCommand
+      currentCommand.step = 2
+      currentCommand.category = data.category
+      currentCommand.protein = data.protein
 
       await ctx.answerCbQuery('')
 
-      const recipes = (
-        await db().manyOrNone<{ name: string }>(
-          `select name from recipes 
+      const recipes: Recipe[] = await db().manyOrNone<{
+        title: string
+        description: string
+        ingredients: string[]
+      }>(
+        `select name as title, ingredients, description
+            from recipes 
             where categories && $1::varchar[] and proteins && $2::varchar[]
-            order by name`,
-          [[data.category], [data.protein]]
-        )
+            order by name
+            limit 6`,
+        [[data.category], [data.protein]]
       )
-        .map((v) => `- <b>${v.name}</b>`)
-        .join('\n')
-      await ctx.editMessageText(`Encontré estas opciones:\n${recipes}`, {
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: '👍',
-                callback_data: JSON.stringify({ ...data, search: false }),
-              },
-              {
-                text: 'Otras opciones',
-                callback_data: JSON.stringify({ ...data, search: true }),
-              },
-            ],
-          ],
-        },
-      })
+
+      currentCommand.recipes = recipes
+
+      await handleRecipeOptions(ctx)
     },
 
     // step = 2
     async (ctx: CallbackQueryContext) => {
-      const callbackData = JSON.parse(
-        (ctx.callbackQuery as CallbackQuery.DataQuery).data
-      ) as { category: string; protein: string; search: boolean }
-
-      const currentCommand = ctx.session.currentCommand as EatCommand
-      currentCommand.step = 3
-
-      await ctx.answerCbQuery('')
-
-      if (callbackData.search) {
-        ctx.sendChatAction('typing')
-        const jsonSchema = {
-          type: 'object',
-          properties: {
-            data: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  title: {
-                    type: 'string',
-                    description: 'Título descriptivo de la receta',
-                  },
-                  ingredients: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'Lista de ingredientes usados',
-                  },
-                  instructions: {
-                    type: 'array',
-                    description:
-                      'Descripción completa de como preparar la receta',
-                    items: { type: 'string' },
-                  },
-                },
-              },
-            },
-          },
-        }
-        const result = await openai.chat.completions.create({
-          stream: false,
-          messages: [
-            {
-              content: 'Eres un asistente que sugiere recetas de cocina',
-              role: 'system',
-            },
-            {
-              content: `Devuelve 3 recetas usando ${callbackData.protein} como proteína principal.`,
-              role: 'user',
-            },
-          ],
-          model: 'gpt-3.5-turbo',
-          functions: [{ name: 'set_recipe', parameters: jsonSchema }],
-          function_call: { name: 'set_recipe' },
-        })
-
-        logger.debug({ responseMessage: result.choices[0].message })
-
-        const responseList = JSON.parse(
-          result.choices[0].message.function_call?.arguments ?? '{}'
-        ) as { data: Recipe[] }
-
-        const messageText = `Encontré las siguientes recetas. Elige una para mas detalles:\n${responseList.data
-          .map((v, k) => `${k + 1}) ${v.title}`)
-          .join('\n')}`
-
-        currentCommand.recipes = responseList.data
-
-        const keyboardButtons = responseList.data.map((v, k) => ({
-          text: `${k + 1})`,
-          callback_data: String(k),
-        }))
-        await ctx.editMessageText(messageText, {
-          reply_markup: {
-            inline_keyboard: [
-              [...keyboardButtons, { text: 'Listo!', callback_data: 'close' }],
-            ],
-          },
-        })
-      }
-    },
-
-    // step = 3
-    async (ctx: CallbackQueryContext) => {
       const callbackData = (ctx.callbackQuery as CallbackQuery.DataQuery).data
 
       const currentCommand = ctx.session.currentCommand as EatCommand
-      currentCommand.step = 4
+      // currentCommand.step = 3
 
       await ctx.answerCbQuery('')
 
-      if (callbackData === 'close') {
+      if (callbackData === 'ok') {
         ctx.session.currentCommand = null
         ctx.editMessageReplyMarkup({ inline_keyboard: [] })
         return
       }
 
-      await ctx.editMessageText(
-        currentCommand.recipes[+callbackData].instructions
-          .map((line) => `- ${line.trim()}`)
-          .join('\n'),
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: '👍', callback_data: 'ok' },
-                { text: 'Otra opción', callback_data: 'other' },
-              ],
-            ],
-          },
+      if (callbackData === 'other') {
+        ctx.sendChatAction('typing')
+        try {
+          currentCommand.recipes = await searchRecipes(
+            currentCommand.protein,
+            3,
+            currentCommand.recipes.map((v) => v.title)
+          )
+        } catch (err) {
+          await ctx.editMessageText(
+            `Ha ocurrido un error en la búsqueda. Intenta de nuevo.`
+          )
+          return
         }
-      )
-    },
-
-    // step = 4
-    async (ctx: CallbackQueryContext) => {
-      const data = (ctx.callbackQuery as CallbackQuery.DataQuery).data
-
-      const currentCommand = ctx.session.currentCommand as EatCommand
-
-      await ctx.answerCbQuery('')
-
-      if (data === 'ok') {
-        ctx.session.currentCommand = null
-        ctx.editMessageReplyMarkup({ inline_keyboard: [] })
+        await handleRecipeOptions(ctx)
         return
       }
 
-      currentCommand.step = 3
-
-      await ctx.answerCbQuery('')
-
-      const recipes = currentCommand.recipes
-      const messageText = `Encontré las siguientes recetas. Elige una para mas detalles:\n${recipes
-        .map((v, k) => `${k + 1}) ${v.title}`)
-        .join('\n')}`
-      const keyboardButtons = recipes.map((v, k) => ({
-        text: `${k + 1})`,
-        callback_data: String(k),
-      }))
-      await ctx.editMessageText(messageText, {
-        reply_markup: {
-          inline_keyboard: [
-            [...keyboardButtons, { text: 'Listo!', callback_data: 'close' }],
-          ],
-        },
-      })
+      const currentRecipe = currentCommand.recipes[+callbackData]
+      await handleRecipeDescription(ctx, currentRecipe)
     },
   ],
+}
+
+async function handleRecipeOptions(ctx: CallbackQueryContext) {
+  const currentCommand = ctx.session.currentCommand as EatCommand
+  const recipes = currentCommand.recipes
+  const messageText = `Encontré las siguientes recetas. Elige una para mas detalles:\n\n${recipes
+    .map((v, k) => `${k + 1}) ${v.title}`)
+    .join('\n')}`
+  const keyboardButtons = recipes.map((v, k) => ({
+    text: `${k + 1})`,
+    callback_data: String(k),
+  }))
+  await ctx.editMessageText(messageText, {
+    reply_markup: {
+      inline_keyboard: [
+        keyboardButtons,
+        [
+          { text: '👍 Listo!', callback_data: 'ok' },
+          { text: '🍔 Otras opciones', callback_data: 'other' },
+        ],
+      ],
+    },
+  })
+}
+
+async function handleRecipeDescription(
+  ctx: CallbackQueryContext,
+  recipe: Recipe
+) {
+  await ctx.editMessageText(`<b>${recipe.title}</b>\n${recipe.description}`, {
+    parse_mode: 'HTML',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '👍 Listo!', callback_data: 'ok' },
+          { text: '🍔 Otras opciones', callback_data: 'other' },
+        ],
+      ],
+    },
+  })
+}
+
+async function searchRecipes(
+  protein: string,
+  n = 3,
+  ignore?: string[]
+): Promise<Recipe[]> {
+  const jsonSchema = {
+    type: 'object',
+    properties: {
+      data: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: {
+              type: 'string',
+              description: 'Título descriptivo de la receta',
+            },
+            ingredients: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Lista de ingredientes usados',
+            },
+            description: {
+              type: 'string',
+              description: 'Descripción completa de como preparar la receta',
+            },
+          },
+        },
+      },
+    },
+  }
+
+  const ignoreText =
+    ignore && ignore.length > 0
+      ? `Ignora las siguientes recetas: ${ignore.join(', ')}`
+      : ''
+  const result = await openai.chat.completions.create({
+    stream: false,
+    messages: [
+      {
+        content: 'Eres un asistente que sugiere recetas de cocina',
+        role: 'system',
+      },
+      {
+        content: `Devuelve ${n} recetas usando ${protein} como proteína principal. ${ignoreText}`,
+        role: 'user',
+      },
+    ],
+    model: 'gpt-3.5-turbo',
+    functions: [{ name: 'set_recipe', parameters: jsonSchema }],
+    function_call: { name: 'set_recipe' },
+  })
+
+  logger.debug(
+    { responseMessage: result.choices[0].message },
+    'OpenAI response'
+  )
+
+  const responseList = JSON.parse(
+    result.choices[0].message.function_call?.arguments ?? '{}'
+  ) as { data: Recipe[] }
+
+  return responseList.data
 }
