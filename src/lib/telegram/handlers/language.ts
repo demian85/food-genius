@@ -27,7 +27,11 @@ export default {
       const lang = (ctx.callbackQuery as CallbackQuery.DataQuery).data
       ctx.session.language = lang
       ctx.session.currentCommand = null
-      await ctx.answerCbQuery(`Your new language is: ${lang}`)
+      await ctx.answerCbQuery(
+        lang === 'en'
+          ? `Your new language is English`
+          : `Tu nuevo idioma es Español`
+      )
     },
   ],
 }
