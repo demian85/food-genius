@@ -46,13 +46,13 @@ bot.use((ctx, _next) => {
   return _next()
 })
 
-bot.start((ctx) => ctx.reply(`Welcome! I'm your home assistant`))
+bot.start((ctx) => ctx.reply(`Hola! Soy experto en sugerirte recetas`))
 
-bot.help((ctx) => ctx.reply('What do you need?'))
+bot.help((ctx) => ctx.reply('Qué necesitas?'))
 
 bot.command('abort', async (ctx) => {
   ctx.session.currentCommand = null
-  await ctx.reply(`Current operation aborted`)
+  await ctx.reply(`Operación abortada`)
 })
 
 bot.command('language', async (ctx) => {

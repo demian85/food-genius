@@ -72,7 +72,9 @@ export default {
     async (ctx: CallbackQueryContext) => {
       const category = (ctx.callbackQuery as CallbackQuery.DataQuery).data
 
-      ctx.session.currentCommand!.step = 1
+      const currentCommand = ctx.session.currentCommand as EatCommand
+      currentCommand.step = 1
+      currentCommand.category = category
 
       await ctx.answerCbQuery('')
 
@@ -90,24 +92,23 @@ export default {
 
       const keyboardButtons = proteins.map((v) => ({
         text: capitalize(v.p),
-        callback_data: JSON.stringify({ category, protein: v.p }),
+        callback_data: v.p,
       }))
 
       await ctx.editMessageText('Elige la proteína', {
-        reply_markup: { inline_keyboard: [keyboardButtons] },
+        reply_markup: {
+          inline_keyboard: buildKeyboardButtons(keyboardButtons),
+        },
       })
     },
 
     // step = 1
     async (ctx: CallbackQueryContext) => {
-      const data = JSON.parse(
-        (ctx.callbackQuery as CallbackQuery.DataQuery).data
-      ) as { category: string; protein: string }
+      const protein = (ctx.callbackQuery as CallbackQuery.DataQuery).data
 
       const currentCommand = ctx.session.currentCommand as EatCommand
       currentCommand.step = 2
-      currentCommand.category = data.category
-      currentCommand.protein = data.protein
+      currentCommand.protein = protein
 
       await ctx.answerCbQuery('')
 
@@ -121,12 +122,12 @@ export default {
             where categories && $1::varchar[] and proteins && $2::varchar[]
             order by name
             limit 6`,
-        [[data.category], [data.protein]]
+        [[currentCommand.category], [protein]]
       )
 
       currentCommand.recipes = recipes
 
-      await handleRecipeOptions(ctx)
+      await handleRecipeOptions(ctx, false)
     },
 
     // step = 2
@@ -168,16 +169,21 @@ export default {
   ],
 }
 
-async function handleRecipeOptions(ctx: CallbackQueryContext) {
+async function handleRecipeOptions(
+  ctx: CallbackQueryContext,
+  allowExpandDescription = true
+) {
   const currentCommand = ctx.session.currentCommand as EatCommand
   const recipes = currentCommand.recipes
   const messageText = `Encontré las siguientes recetas. Elige una para mas detalles:\n\n${recipes
     .map((v, k) => `${k + 1}) ${v.title}`)
     .join('\n')}`
-  const keyboardButtons = recipes.map((v, k) => ({
-    text: `${k + 1})`,
-    callback_data: String(k),
-  }))
+  const keyboardButtons = allowExpandDescription
+    ? recipes.map((v, k) => ({
+        text: `${k + 1})`,
+        callback_data: String(k),
+      }))
+    : []
   await ctx.editMessageText(messageText, {
     reply_markup: {
       inline_keyboard: [
@@ -232,7 +238,7 @@ async function searchRecipes(
             },
             description: {
               type: 'string',
-              description: 'Descripción completa de como preparar la receta',
+              description: 'Instrucciones de como preparar la receta',
             },
           },
         },
@@ -271,4 +277,17 @@ async function searchRecipes(
   ) as { data: Recipe[] }
 
   return responseList.data
+}
+
+function buildKeyboardButtons(
+  btns: InlineKeyboardButton[]
+): InlineKeyboardButton[][] {
+  const keyboard: InlineKeyboardButton[][] = []
+  btns.forEach((btn, index) => {
+    if (index % 3 === 0) {
+      keyboard.push([])
+    }
+    keyboard[keyboard.length - 1].push(btn)
+  })
+  return keyboard
 }
