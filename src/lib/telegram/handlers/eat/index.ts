@@ -2,21 +2,17 @@ import {
   CallbackQuery,
   InlineKeyboardButton,
 } from 'telegraf/typings/core/types/typegram'
-import {
-  CallbackQueryContext,
-  EatCommand,
-  MessageContext,
-  Recipe,
-} from '../../types'
-import { db } from '@lib/db'
+import { CallbackQueryContext, EatCommand, MessageContext } from '../../types'
 import { capitalize } from 'lodash'
 import {
   buildKeyboardButtons,
   handleRecipeDescription,
   handleRecipeOptions,
+  proteinsByDietaryRestrictions,
   searchLocalRecipes,
   searchRecipesUsingOpenAI,
 } from './util'
+import { cancelCommand } from '../util'
 
 export default {
   message: [
@@ -61,7 +57,7 @@ export default {
           },
         ],
       }
-      const keyboardButtons = keyboardOptions[ctx.session.language]
+      const keyboardButtons = keyboardOptions[ctx.session.config.language]
       await ctx.reply(`Elige la categoría`, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: [keyboardButtons] },
@@ -88,12 +84,8 @@ export default {
         await handleRecipeOptions(ctx, false)
       } else {
         currentCommand.step = 1
-        const proteins = await db().manyOrNone<{ p: string }>(
-          `select distinct unnest(proteins) as p 
-            from recipes 
-            where categories && $1::varchar[]`,
-          [[category]]
-        )
+        const proteins =
+          proteinsByDietaryRestrictions[ctx.session.config.dietaryRestrictions]
 
         if (!proteins.length) {
           await ctx.editMessageText('No se han encontrado recetas')
@@ -101,8 +93,8 @@ export default {
         }
 
         const keyboardButtons = proteins.map((v) => ({
-          text: capitalize(v.p),
-          callback_data: v.p,
+          text: capitalize(v),
+          callback_data: v,
         }))
 
         await ctx.editMessageText('Elige la proteína', {
@@ -140,9 +132,8 @@ export default {
       await ctx.answerCbQuery('')
 
       if (callbackData === 'ok') {
-        ctx.session.currentCommand = null
-        ctx.editMessageReplyMarkup({ inline_keyboard: [] })
-        return
+        await ctx.editMessageReplyMarkup({ inline_keyboard: [] })
+        return cancelCommand(ctx)
       }
 
       if (callbackData === 'other') {
@@ -150,16 +141,17 @@ export default {
         try {
           currentCommand.recipes = await searchRecipesUsingOpenAI(
             currentCommand.protein,
+            ctx.session.config.dietaryRestrictions,
             3,
             currentCommand.recipes.map((v) => v.title)
           )
+
+          await handleRecipeOptions(ctx)
         } catch (err) {
           await ctx.editMessageText(
             `Ha ocurrido un error en la búsqueda. Intenta de nuevo.`
           )
-          return
         }
-        await handleRecipeOptions(ctx)
         return
       }
 

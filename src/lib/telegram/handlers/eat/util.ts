@@ -8,15 +8,35 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
+const veganProteins = [
+  'tofu',
+  'seitán',
+  'soja',
+  'levadura nutricional',
+  'semillas',
+  'lentejas',
+  'porotos',
+  'alubias',
+]
+
+export const proteinsByDietaryRestrictions: Record<string, string[]> = {
+  regular: ['carne', 'pollo', 'pavo', 'pescado', 'huevo'],
+  vegan: veganProteins,
+  vegetarian: [...veganProteins, 'huevo'],
+}
+
 export async function handleRecipeOptions(
   ctx: CallbackQueryContext,
   allowExpandDescription = true
 ) {
   const currentCommand = ctx.session.currentCommand as EatCommand
   const recipes = currentCommand.recipes
-  const messageText = `Encontré las siguientes recetas.${
-    allowExpandDescription ? `Elige una para mas detalles:` : ``
-  }\n\n${recipes.map((v, k) => `${k + 1}) ${v.title}`).join('\n')}`
+  const messageText =
+    recipes.length > 0
+      ? `Encontré las siguientes recetas${
+          allowExpandDescription ? `. Elige una para mas detalles:` : ``
+        }\n\n${recipes.map((v, k) => `${k + 1}) ${v.title}`).join('\n')}`
+      : `No se han encontrado recetas predefinidas`
   const keyboardButtons = allowExpandDescription
     ? recipes.map((v, k) => ({
         text: `${k + 1})`,
@@ -72,6 +92,7 @@ export async function searchLocalRecipes(
 
 export async function searchRecipesUsingOpenAI(
   protein: string,
+  dietaryRestrictions: string,
   n = 3,
   ignore?: string[]
 ): Promise<Recipe[]> {
@@ -106,11 +127,16 @@ export async function searchRecipesUsingOpenAI(
     ignore && ignore.length > 0
       ? `Ignora las siguientes recetas: ${ignore.join(', ')}`
       : ''
+  const systemMessage = `Eres un asistente que sugiere recetas de cocina${
+    dietaryRestrictions
+      ? `. Ten en cuenta la siguiente restricción dietaria: ${dietaryRestrictions}`
+      : ''
+  }`
   const result = await openai.chat.completions.create({
     stream: false,
     messages: [
       {
-        content: 'Eres un asistente que sugiere recetas de cocina',
+        content: systemMessage,
         role: 'system',
       },
       {

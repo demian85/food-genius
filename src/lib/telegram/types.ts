@@ -27,6 +27,7 @@ export type CallbackQueryContext = NarrowedContext<
 export interface CurrentCommand {
   id: string
   step: number
+  subcommand?: string
   data?: string
 }
 
@@ -51,7 +52,10 @@ export interface ContextWithSession<U extends Update = Update>
   extends Context<U> {
   session: {
     currentCommand: CurrentCommand | null
-    language: string
+    config: {
+      language: string
+      dietaryRestrictions: string
+    }
   }
 }
 

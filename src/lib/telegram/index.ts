@@ -31,7 +31,10 @@ bot.use((ctx, _next) => {
     'Middleware call'
   )
 
-  ctx.session ??= { currentCommand: null, language: 'es' }
+  ctx.session ??= {
+    currentCommand: null,
+    config: { language: 'es', dietaryRestrictions: 'regular' },
+  }
 
   if (ctx.chat?.type !== 'private') {
     throw new Error('Bot not allowed in groups')
@@ -55,8 +58,8 @@ bot.command('abort', async (ctx) => {
   await ctx.reply(`Operación abortada`)
 })
 
-bot.command('language', async (ctx) => {
-  await handlers.language.message[0](ctx)
+bot.command('config', async (ctx) => {
+  await handlers.config.message[0](ctx)
 })
 
 bot.command('eat', async (ctx) => {
