@@ -12,15 +12,10 @@ const veganProteins = [
   'tofu',
   'seitán',
   'soja',
-  'levadura nutricional',
-  'semillas',
-  'lentejas',
-  'porotos',
-  'alubias',
 ]
 
 export const proteinsByDietaryRestrictions: Record<string, string[]> = {
-  regular: ['carne', 'pollo', 'pavo', 'pescado', 'huevo'],
+  regular: ['carne', 'pollo', 'pescado', 'huevo'],
   vegan: veganProteins,
   vegetarian: [...veganProteins, 'huevo'],
 }
