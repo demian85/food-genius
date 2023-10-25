@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - food-genius-db:/var/lib/postgresql/data
+
+  food-genius:
+    build:
+      context: .
+    environment:
+      PG_HOST: postgres
+      PG_DB: postgres
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      NODE_ENV: ${NODE_ENV}
+      LOG_LEVEL: ${LOG_LEVEL}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      - postgres
+    # ports:
+    #   - '3000:3000'
+
+volumes:
+  food-genius-db:

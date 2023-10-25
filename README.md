@@ -10,4 +10,13 @@ Telegram bot allowing you to build and find recipes by category, ingredient or p
 
 ## Run
 
-- `npm start`
+- `npm i && npm run build && npm start`
+
+## Using Docker
+
+- `docker build -t food-genius .`
+- `docker run -it food-genius`
+
+Or
+
+- `docker compose up -d`
