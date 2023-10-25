@@ -78,6 +78,8 @@ bot.on(message('text'), async (ctx) => {
   if (cmd !== null) {
     const cmdId = cmd.id as keyof typeof handlers
     await handlers?.[cmdId].message[cmd.step](ctx)
+  } else {
+    await ctx.reply(`/help`)
   }
 })
 
