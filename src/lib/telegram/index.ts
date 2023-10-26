@@ -41,12 +41,12 @@ bot.use((ctx, _next) => {
     throw new Error('Bot not allowed in groups')
   }
 
-  if (
-    !ctx.chat.username ||
-    !['demian85', 'SilvanaFontana'].includes(ctx.chat.username)
-  ) {
-    throw new Error('Forbidden')
-  }
+  // if (
+  //   !ctx.chat.username ||
+  //   !['demian85', 'SilvanaFontana'].includes(ctx.chat.username)
+  // ) {
+  //   throw new Error('Forbidden')
+  // }
 
   return _next()
 })
