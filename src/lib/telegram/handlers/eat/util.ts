@@ -8,18 +8,6 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-const veganProteins = [
-  'tofu',
-  'seitán',
-  'soja',
-]
-
-export const proteinsByDietaryRestrictions: Record<string, string[]> = {
-  regular: ['carne', 'pollo', 'pescado', 'huevo'],
-  vegan: veganProteins,
-  vegetarian: [...veganProteins, 'huevo'],
-}
-
 export async function handleRecipeOptions(
   ctx: CallbackQueryContext,
   allowExpandDescription = true
@@ -68,26 +56,55 @@ export async function handleRecipeDescription(
   })
 }
 
-export async function searchLocalRecipes(
-  category: string,
-  protein: string | null
+export async function getCategories(): Promise<{ id: number; name: string }[]> {
+  return db().manyOrNone<{ id: number; name: string }>(
+    `select id, name from categories order by id`
+  )
+}
+
+export async function searchCollations(
+  proteins: string[] | null
 ): Promise<Recipe[]> {
   const recipes = await db().manyOrNone<Recipe>(
-    `select name as title, ingredients, description
+    `(select name as title
       from recipes 
-      where categories && $1::varchar[] 
-        and ($2 is null or proteins && $2::varchar[])
+      where category_id = 2 and type_id = 1
+        and ($1 is null or proteins && $1::varchar[])
       order by name
-      limit 6`,
-    [[category], protein ? [protein] : null]
+      limit 2)
+      union
+      (select name as title
+        from recipes 
+        where category_id = 2 and type_id = 2
+          and ($1 is null or proteins && $1::varchar[])
+        order by name
+        limit 1)`,
+    [proteins]
+  )
+
+  return recipes
+}
+
+export async function searchLocalRecipes(
+  categoryId: number,
+  typeId: number,
+  proteins: string[] | null
+): Promise<Recipe[]> {
+  const recipes = await db().manyOrNone<Recipe>(
+    `select name as title
+      from recipes 
+      where category_id = $1 and type_id = $2
+        and ($3 is null or proteins && $3::varchar[])
+      order by name
+      limit 3`,
+    [categoryId, typeId, proteins ?? null]
   )
 
   return recipes
 }
 
 export async function searchRecipesUsingOpenAI(
-  protein: string,
-  dietaryRestrictions: string,
+  proteins: string[],
   n = 3,
   ignore?: string[]
 ): Promise<Recipe[]> {
@@ -123,8 +140,10 @@ export async function searchRecipesUsingOpenAI(
       ? `Ignora las siguientes recetas: ${ignore.join(', ')}`
       : ''
   const systemMessage = `Eres un asistente que sugiere recetas de cocina${
-    dietaryRestrictions
-      ? `. Ten en cuenta la siguiente restricción dietaria: ${dietaryRestrictions}`
+    proteins.length > 0
+      ? `. Solo considera recetas usando las siguientes proteínas: ${proteins.join(
+          ','
+        )}.`
       : ''
   }`
   const result = await openai.chat.completions.create({
@@ -135,7 +154,7 @@ export async function searchRecipesUsingOpenAI(
         role: 'system',
       },
       {
-        content: `Devuelve ${n} recetas usando ${protein} como proteína principal. ${ignoreText}`,
+        content: `Devuelve ${n} recetas. ${ignoreText}`,
         role: 'user',
       },
     ],

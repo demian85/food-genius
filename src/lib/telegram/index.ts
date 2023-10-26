@@ -5,6 +5,7 @@ import logger from '@lib/logger'
 import { Postgres } from '@telegraf/session/pg'
 import { ContextWithSession } from './types'
 import handlers from './handlers'
+import { proteins } from './data'
 
 const bot = new Telegraf<ContextWithSession>(process.env.TELEGRAM_BOT_TOKEN!)
 
@@ -33,12 +34,13 @@ bot.use((ctx, _next) => {
 
   ctx.session ??= {
     currentCommand: null,
-    config: { language: 'es', dietaryRestrictions: 'regular' },
+    config: { language: 'es', proteins },
   }
 
   if (ctx.chat?.type !== 'private') {
     throw new Error('Bot not allowed in groups')
   }
+
   if (
     !ctx.chat.username ||
     !['demian85', 'SilvanaFontana'].includes(ctx.chat.username)

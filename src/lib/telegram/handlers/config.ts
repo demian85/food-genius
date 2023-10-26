@@ -1,6 +1,8 @@
 import { CallbackQuery } from 'telegraf/typings/core/types/typegram'
 import { CallbackQueryContext, MessageContext } from '../types'
 import { callbackError, cancelCommand } from './util'
+import { proteins } from '../data'
+import { buildKeyboardButtons } from './eat/util'
 
 export default {
   message: [
@@ -13,8 +15,8 @@ export default {
           callback_data: 'language',
         },
         {
-          text: 'Restricciones dietarias',
-          callback_data: 'dietary_restrictions',
+          text: 'Proteínas',
+          callback_data: 'proteins',
         },
       ]
       await ctx.reply(`Elige una opción`, {
@@ -41,19 +43,11 @@ export default {
         })
       }
 
-      if (callbackValue === 'dietary_restrictions') {
-        await ctx.editMessageReplyMarkup({
-          inline_keyboard: [
-            [
-              { text: 'Regular', callback_data: 'regular' },
-              { text: 'Vegano', callback_data: 'vegan' },
-              { text: 'Vegetariano', callback_data: 'vegetarian' },
-            ],
-          ],
-        })
+      if (callbackValue === 'proteins') {
+        await updateProteinsKeyboard(ctx)
       }
 
-      await ctx.answerCbQuery(``)
+      await ctx.answerCbQuery()
     },
 
     // step = 1
@@ -71,17 +65,46 @@ export default {
             { reply_markup: { inline_keyboard: [] } }
           )
           return cancelCommand(ctx)
-        case 'dietary_restrictions':
-          ctx.session.config.dietaryRestrictions = callbackValue
-          await ctx.answerCbQuery('')
-          await ctx.editMessageText(
-            `Se ha establecido nueva restricción dietaria`,
-            { reply_markup: { inline_keyboard: [] } }
-          )
-          return cancelCommand(ctx)
+        case 'proteins':
+          await ctx.answerCbQuery()
+          if (callbackValue === '__ok__') {
+            ctx.editMessageText(
+              `Tus proteínas son: ${ctx.session.config.proteins.join(', ')}`,
+              { reply_markup: { inline_keyboard: [] } }
+            )
+          } else {
+            ctx.session.config.proteins = proteins.reduce((prev, curr) => {
+              const incl = ctx.session.config.proteins.includes(curr)
+              if (curr === callbackValue) {
+                if (!incl) {
+                  prev.push(curr)
+                }
+              } else if (incl) {
+                prev.push(curr)
+              }
+              return prev
+            }, [] as string[])
+
+            await updateProteinsKeyboard(ctx)
+          }
+          break
         default:
           return callbackError(ctx)
       }
     },
   ],
+}
+
+async function updateProteinsKeyboard(ctx: CallbackQueryContext) {
+  await ctx.editMessageReplyMarkup({
+    inline_keyboard: buildKeyboardButtons([
+      ...proteins.map((v) => {
+        if (ctx.session.config.proteins.includes(v)) {
+          return { text: `✔️ ${v}`, callback_data: v }
+        }
+        return { text: `❌ ${v}`, callback_data: v }
+      }),
+      { text: '👍 Listo!', callback_data: '__ok__' },
+    ]),
+  })
 }

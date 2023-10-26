@@ -33,14 +33,13 @@ export interface CurrentCommand {
 
 export interface Recipe {
   title: string
-  ingredients: string[]
-  description: string
+  description?: string
 }
 
 export interface EatCommand extends CurrentCommand {
   id: 'eat'
-  category: string
-  protein: string
+  categoryId: number
+  typeId: number
   recipes: Recipe[]
 }
 
@@ -54,7 +53,7 @@ export interface ContextWithSession<U extends Update = Update>
     currentCommand: CurrentCommand | null
     config: {
       language: string
-      dietaryRestrictions: string
+      proteins: string[]
     }
   }
 }
