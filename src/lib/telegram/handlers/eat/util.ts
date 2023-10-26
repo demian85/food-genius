@@ -62,24 +62,19 @@ export async function getCategories(): Promise<{ id: number; name: string }[]> {
   )
 }
 
-export async function searchCollations(
-  proteins: string[] | null
-): Promise<Recipe[]> {
+export async function searchCollations(): Promise<Recipe[]> {
   const recipes = await db().manyOrNone<Recipe>(
     `(select name as title
       from recipes 
       where category_id = 2 and type_id = 1
-        and ($1 is null or proteins && $1::varchar[])
       order by name
       limit 2)
       union
       (select name as title
         from recipes 
         where category_id = 2 and type_id = 2
-          and ($1 is null or proteins && $1::varchar[])
         order by name
-        limit 1)`,
-    [proteins]
+        limit 1)`
   )
 
   return recipes

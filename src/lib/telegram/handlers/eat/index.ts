@@ -38,7 +38,7 @@ export default {
       currentCommand.step = 1
       currentCommand.categoryId = categoryId
 
-      await ctx.answerCbQuery('')
+      await ctx.answerCbQuery()
 
       const recipes =
         categoryId === 1
@@ -47,7 +47,7 @@ export default {
               2,
               ctx.session.config.proteins
             )
-          : await searchCollations(ctx.session.config.proteins)
+          : await searchCollations()
 
       if (!recipes.length) {
         await ctx.editMessageText('No se han encontrado recetas')
