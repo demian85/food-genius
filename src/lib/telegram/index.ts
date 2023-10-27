@@ -72,17 +72,22 @@ bot.on(message('text'), async (ctx) => {
   const prompt = ctx.message.text
 
   if (!prompt) {
-    return ctx.reply(`I can't do anything with an empty command`)
+    return ctx.reply(`/help`)
   }
 
   const cmd = ctx.session.currentCommand
 
   if (cmd !== null) {
     const cmdId = cmd.id as keyof typeof handlers
-    await handlers?.[cmdId].message[cmd.step](ctx)
-  } else {
-    await ctx.reply(`/help`)
+    const handler = handlers?.[cmdId].message[cmd.step]
+    if (!handler) {
+      await ctx.reply(`/help`)
+      return
+    }
+    return handlers?.[cmdId].message[cmd.step](ctx)
   }
+
+  await ctx.reply(`/help`)
 })
 
 bot.on('callback_query', async (ctx) => {
