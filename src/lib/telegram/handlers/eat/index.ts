@@ -56,7 +56,7 @@ export default {
 
       currentCommand.recipes = recipes
 
-      await handleRecipeOptions(ctx, false)
+      await handleRecipeOptions(ctx)
     },
 
     // step = 1 - recipe selected

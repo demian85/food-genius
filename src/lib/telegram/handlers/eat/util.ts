@@ -8,28 +8,18 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-export async function handleRecipeOptions(
-  ctx: CallbackQueryContext,
-  allowExpandDescription = true
-) {
+export async function handleRecipeOptions(ctx: CallbackQueryContext) {
   const currentCommand = ctx.session.currentCommand as EatCommand
   const recipes = currentCommand.recipes
   const messageText =
     recipes.length > 0
-      ? `Encontré las siguientes recetas${
-          allowExpandDescription ? `. Elige una para mas detalles:` : ``
-        }\n\n${recipes.map((v, k) => `${k + 1}) ${v.title}`).join('\n')}`
-      : `No se han encontrado recetas predefinidas`
-  const keyboardButtons = allowExpandDescription
-    ? recipes.map((v, k) => ({
-        text: `${k + 1})`,
-        callback_data: String(k),
-      }))
-    : []
+      ? `Encontré las siguientes recetas:\n\n${recipes
+          .map((v, k) => `${k + 1}) ${v.title}`)
+          .join('\n')}`
+      : `No se han encontrado recetas`
   await ctx.editMessageText(messageText, {
     reply_markup: {
       inline_keyboard: [
-        keyboardButtons,
         [
           { text: '👍 Listo!', callback_data: 'ok' },
           { text: '🧐 Otras opciones', callback_data: 'other' },
