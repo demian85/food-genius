@@ -5,5 +5,7 @@ export const proteins = [
   'carne',
   'pollo',
   'pescado',
+  'moluscos',
+  'Jamón',
   'huevo',
 ]
